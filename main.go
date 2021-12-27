@@ -6,7 +6,9 @@ import (
 	"image"
 	"image/draw"
 	"image/color"
+	"image/gif"
 	"math/rand"
+	"sort"
 	"time"
 
 	"github.com/oakmound/oak/v3"
@@ -45,11 +47,12 @@ func main() {
 	})
 	oak.AddScene(GameSceneName, scene.Scene{
 		Start: func(ctx *scene.Context) {
+			//recordGif(ctx)
 			rand.Seed(time.Now().Unix())
 			st := NewGameState(ctx, GameConfig{}) 
 			ctx.DrawStack.Draw(st)
 			//populateTestBoard(st.GameBoard)
-			const keyRepeatDuration = 100 * time.Millisecond
+			const keyRepeatDuration = 70 * time.Millisecond
 			const todoFallDuration = 700 * time.Millisecond 
 			dropAt := time.Now().Add(todoFallDuration)
 			
@@ -58,7 +61,7 @@ func main() {
 				Board: &st.GameBoard,
 				X: 5,
 				Y: 0, 
-				TrisKind: KindSquare,
+				TrisKind: RandomKind(),
 			}
 
 			keyRepeat := time.Now().Add(keyRepeatDuration)
@@ -70,21 +73,18 @@ func main() {
 					dropAt = time.Now().Add(todoFallDuration)
 				}
 				if time.Now().After(keyRepeat) {
-					pressed := false 
 					if ctx.KeyState.IsDown(key.A) {
 						st.ActiveTris.MoveLeft()
-						pressed = true 
+						keyRepeat = time.Now().Add(keyRepeatDuration)
 					}
 					if ctx.KeyState.IsDown(key.D) {
 						st.ActiveTris.MoveRight()
-						pressed = true 
+						keyRepeat = time.Now().Add(keyRepeatDuration)
 					}
 					if ctx.KeyState.IsDown(key.S) {
 						tileDone = st.ActiveTris.MoveDown()
-						pressed = true 
-					}
-					if pressed {
-						keyRepeat = time.Now().Add(keyRepeatDuration)
+						dropAt = time.Now().Add(todoFallDuration)
+						keyRepeat = time.Now().Add(keyRepeatDuration/2)
 					}
 				}
 				if tileDone {
@@ -93,7 +93,7 @@ func main() {
 						Board: &st.GameBoard,
 						X: 5,
 						Y: 0, 
-						TrisKind: KindSquare,
+						TrisKind: RandomKind(),
 					}
 				}
 				return 0
@@ -218,6 +218,10 @@ func (at *ActiveTris) MoveLeft() {
 	off := at.TrisKind.Offsets()
 	for _, o := range off {
 		x := int(at.X) + int(o[0])
+		y := int(at.Y) + int(o[1])
+		if at.Board.IsSet(x-1,y) {
+			return 
+		}
 		if x < minX {
 			minX = x 
 		}
@@ -233,6 +237,10 @@ func (at *ActiveTris) MoveRight() {
 	off := at.TrisKind.Offsets()
 	for _, o := range off {
 		x := int(at.X) + int(o[0])
+		y := int(at.Y) + int(o[1])
+		if at.Board.IsSet(x+1,y) {
+			return 
+		}
 		if x > maxX {
 			maxX = x 
 		}
@@ -335,17 +343,18 @@ func (tk TrisKind) Offsets() [4][2]int8{
 type GameBoard struct {
 	Width BoardDimension 
 	Height BoardDimension 
+	// Unexpected! Y x X! Because that makes it easier to clear lines! 
 	Set [][]TrisKind
 	ActiveTris ActiveTris
 }
 
 func NewGameBoard(cfg GameConfig) GameBoard {
 	// TODO 
-	const todoWidth = 8
+	const todoWidth = 10
 	const todoHeight = 24 
-	set := make([][]TrisKind, todoWidth)
-	for i := range set {
-		set[i] = make([]TrisKind, todoHeight)
+	set := make([][]TrisKind, todoHeight)
+	for y := range set {
+		set[y] = make([]TrisKind, todoWidth)
 	}
 	return GameBoard{
 		Width: todoWidth,
@@ -368,14 +377,14 @@ func (gb *GameBoard) draw(buff draw.Image, w, h int) {
 		color.RGBA{255,255,255,255})
 	cellW := w / int(gb.Width)
 	cellH := h / int(gb.Height)
-	for x := 0; x < len(gb.Set); x++ {
-		for y := 0; y < len(gb.Set[0]); y++ {
-			if gb.Set[x][y] == KindNone {
+	for x := 0; x < int(gb.Width); x++ {
+		for y := 0; y < int(gb.Height); y++ {
+			if gb.Set[y][x] == KindNone {
 				continue 
 			}
 			// todo: make optimized filled rect draw helper
-			c := gb.Set[x][y].Color()
-			drawRect(buff.(*image.RGBA), 
+			c := gb.Set[y][x].Color()
+			drawFilledRect(buff.(*image.RGBA), 
 				intgeom.Point2{
 					boardX + (x*cellW) + cellBuffer,
 					boardY + (y*cellH) + cellBuffer,
@@ -392,9 +401,9 @@ func (gb *GameBoard) draw(buff draw.Image, w, h int) {
 	for _, off := range activeOff {
 		x := int(gb.ActiveTris.X) + int(off[0])
 		y := int(gb.ActiveTris.Y) + int(off[1]) 
-		if x >= 0 && x <= len(gb.Set) {
-			if y >= 0 && y <= len(gb.Set[0]) {
-				drawRect(buff.(*image.RGBA), 
+		if x >= 0 && x < int(gb.Width) {
+			if y >= 0 && y < int(gb.Height) {
+				drawFilledRect(buff.(*image.RGBA), 
 					intgeom.Point2{
 						boardX + (x*cellW) + cellBuffer,
 						boardY + (y*cellH) + cellBuffer,
@@ -430,13 +439,21 @@ func drawRect(buff *image.RGBA, pos, dims intgeom.Point2, c color.RGBA) {
 		c)
 }
 
+func drawFilledRect(buff *image.RGBA, pos, dims intgeom.Point2, c color.RGBA) {
+	draw.Draw(buff, image.Rect(pos.X(),pos.Y(),pos.X()+dims.X(),pos.Y()+dims.Y()),
+		image.NewUniform(c), image.Point{}, draw.Over)
+}
+
 func populateTestBoard(gb GameBoard) {
-	for x := 0; x < len(gb.Set); x++ {
-		for y := 0; y < len(gb.Set[0]); y++ {
-			k := rand.Intn(int(KindFinal-1)) + 1 
-			gb.Set[x][y] = TrisKind(k)
+	for x := 0; x < int(gb.Width); x++ {
+		for y := 0; y < int(gb.Height); y++ {
+			gb.Set[y][x] = RandomKind()
 		}
 	}
+}
+
+func RandomKind() TrisKind {
+	return TrisKind(rand.Intn(int(KindFinal-1)) + 1)
 }
 
 func (gb *GameBoard) CheckIfTileIsPlaced() (placed bool) {
@@ -448,12 +465,12 @@ func (gb *GameBoard) CheckIfTileIsPlaced() (placed bool) {
 	for _, off := range activeOff {
 		x := int(gb.ActiveTris.X) + int(off[0])
 		y := int(gb.ActiveTris.Y) + int(off[1]) 
-		if x >= 0 && x < len(gb.Set) {
-			if y >= 0 && y < len(gb.Set[0]) {
+		if x >= 0 && x < int(gb.Width) {
+			if y >= 0 && y < int(gb.Height) {
 				if y == int(gb.Height)-1 {
 					return true 
 				}
-				if gb.Set[x][y+1] != KindNone {
+				if gb.IsSet(x,y+1) {
 					return true 
 				}
 			}
@@ -464,13 +481,69 @@ func (gb *GameBoard) CheckIfTileIsPlaced() (placed bool) {
 
 func (gb *GameBoard) SetActiveTile() {
 	activeOff := gb.ActiveTris.Offsets()
+	allY := map[int]struct{}{}
 	for _, off := range activeOff {
 		x := int(gb.ActiveTris.X) + int(off[0])
 		y := int(gb.ActiveTris.Y) + int(off[1]) 
-		if x >= 0 && x < len(gb.Set) {
-			if y >= 0 && y < len(gb.Set[0]) {
-				gb.Set[x][y] = gb.ActiveTris.TrisKind
+		if x >= 0 && x < int(gb.Width){
+			if y >= 0 && y < int(gb.Height) {
+				gb.Set[y][x] = gb.ActiveTris.TrisKind	
+				allY[y] = struct{}{}			
 			}
 		}
+	} 
+	orderedY := []int{} 
+	for y := range allY {
+		orderedY = append(orderedY, y)
 	}
+	sort.Slice(orderedY, func(i, j int) bool {
+		return i < j 
+	})
+	for _, y := range orderedY {
+		gb.ClearFullLines(y)
+	}
+}
+
+func (gb *GameBoard) ClearFullLines(y int) {
+	for x := 0; x < int(gb.Width); x++ {
+		if gb.Set[y][x] == KindNone {
+			return 
+		}
+	}
+	gb.Set = append(gb.Set[:y], gb.Set[y+1:]...)
+	firstRow := make([]TrisKind, gb.Width)
+	gb.Set = append([][]TrisKind{firstRow}, gb.Set...)
+}
+
+func (gb *GameBoard) IsSet(x, y int) bool {
+	if x < 0 {
+		return false 
+	}
+	if y < 0 {
+		return false // ??
+	}
+	if x >= int(gb.Width) {
+		return false 
+	}
+	if y >= int(gb.Height) {
+		return false 
+	}
+	return gb.Set[y][x] != KindNone
+}
+
+func recordGif(ctx *scene.Context) {
+	stop := ctx.Window.(*oak.Window).RecordGIF(3)
+
+	go ctx.DoAfter(10 * time.Second, func() {
+		g := stop()
+		f, err := os.Create("demo.gif")
+		if err == nil {
+			err = gif.EncodeAll(f, g)
+			if err != nil {
+				fmt.Println(err)
+			}
+		} else {
+			fmt.Println(err)
+		}
+	})
 }
