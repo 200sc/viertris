@@ -7,10 +7,13 @@ import (
 	"image/draw"
 	"image/color"
 	"math/rand"
+	"time"
 
 	"github.com/oakmound/oak/v3"
 	"github.com/oakmound/oak/v3/scene"
 	"github.com/oakmound/oak/v3/render"
+	"github.com/oakmound/oak/v3/key"
+	"github.com/oakmound/oak/v3/event"
 	"github.com/oakmound/oak/v3/alg/intgeom"
 )
 
@@ -42,9 +45,59 @@ func main() {
 	})
 	oak.AddScene(GameSceneName, scene.Scene{
 		Start: func(ctx *scene.Context) {
+			rand.Seed(time.Now().Unix())
 			st := NewGameState(ctx, GameConfig{}) 
 			ctx.DrawStack.Draw(st)
-			populateTestBoard(st.GameBoard)
+			//populateTestBoard(st.GameBoard)
+			const keyRepeatDuration = 100 * time.Millisecond
+			const todoFallDuration = 700 * time.Millisecond 
+			dropAt := time.Now().Add(todoFallDuration)
+			
+
+			st.ActiveTris = ActiveTris{
+				Board: &st.GameBoard,
+				X: 5,
+				Y: 0, 
+				TrisKind: KindSquare,
+			}
+
+			keyRepeat := time.Now().Add(keyRepeatDuration)
+			ctx.EventHandler.GlobalBind(event.Enter, func(_ event.CID, payload interface{}) int {
+				tileDone := false 
+				//enter := payload.(event.EnterPayload)
+				if time.Now().After(dropAt) {
+					tileDone = st.ActiveTris.MoveDown()
+					dropAt = time.Now().Add(todoFallDuration)
+				}
+				if time.Now().After(keyRepeat) {
+					pressed := false 
+					if ctx.KeyState.IsDown(key.A) {
+						st.ActiveTris.MoveLeft()
+						pressed = true 
+					}
+					if ctx.KeyState.IsDown(key.D) {
+						st.ActiveTris.MoveRight()
+						pressed = true 
+					}
+					if ctx.KeyState.IsDown(key.S) {
+						tileDone = st.ActiveTris.MoveDown()
+						pressed = true 
+					}
+					if pressed {
+						keyRepeat = time.Now().Add(keyRepeatDuration)
+					}
+				}
+				if tileDone {
+					st.GameBoard.SetActiveTile()
+					st.ActiveTris = ActiveTris{
+						Board: &st.GameBoard,
+						X: 5,
+						Y: 0, 
+						TrisKind: KindSquare,
+					}
+				}
+				return 0
+			})
 	// Game Scene:
 	// -- Game Board 
 	// -- Score / Level tracking 
@@ -89,7 +142,6 @@ type GameState struct {
 	ctx *scene.Context 
 	w, h int 
 	Clears uint32
-	ThisTris ActiveTris
 	Level uint16
 	NextTris TrisKind 
 	StoredTris TrisKind 
@@ -154,9 +206,60 @@ type GameConfig struct {
 }
 
 type ActiveTris struct {
+	Board *GameBoard
 	X BoardDimension 
 	Y BoardDimension 
 	TrisKind
+}
+
+func (at *ActiveTris) MoveLeft() {
+	minX := int(at.X) 
+	// TODO: rotate 
+	off := at.TrisKind.Offsets()
+	for _, o := range off {
+		x := int(at.X) + int(o[0])
+		if x < minX {
+			minX = x 
+		}
+	}
+	if minX > 0 {
+		at.X--
+	}
+}
+
+func (at *ActiveTris) MoveRight() {
+	maxX := int(at.X) 
+	// TODO: rotate 
+	off := at.TrisKind.Offsets()
+	for _, o := range off {
+		x := int(at.X) + int(o[0])
+		if x > maxX {
+			maxX = x 
+		}
+	}
+	if maxX < int(at.Board.Width-1) {
+		at.X++
+	}
+}
+
+func (at *ActiveTris) MoveDown() bool {
+	maxY := int(at.Y)
+	// TODO: rotate 
+	off := at.TrisKind.Offsets()
+	for _, o := range off {
+		y := int(at.Y) + int(o[1])
+		if y > maxY {
+			maxY = y
+		}
+	}
+	if maxY <= int(at.Board.Height-1) {
+		placed := at.Board.CheckIfTileIsPlaced()
+		if !placed {
+			at.Y++
+		}
+		return placed 
+	}
+	return false 
 }
 
 type TrisKind uint8
@@ -233,6 +336,7 @@ type GameBoard struct {
 	Width BoardDimension 
 	Height BoardDimension 
 	Set [][]TrisKind
+	ActiveTris ActiveTris
 }
 
 func NewGameBoard(cfg GameConfig) GameBoard {
@@ -283,6 +387,26 @@ func (gb *GameBoard) draw(buff draw.Image, w, h int) {
 			)
 		}
 	}
+	activeOff := gb.ActiveTris.Offsets()
+	activeC := gb.ActiveTris.Color()
+	for _, off := range activeOff {
+		x := int(gb.ActiveTris.X) + int(off[0])
+		y := int(gb.ActiveTris.Y) + int(off[1]) 
+		if x >= 0 && x <= len(gb.Set) {
+			if y >= 0 && y <= len(gb.Set[0]) {
+				drawRect(buff.(*image.RGBA), 
+					intgeom.Point2{
+						boardX + (x*cellW) + cellBuffer,
+						boardY + (y*cellH) + cellBuffer,
+					},
+					intgeom.Point2{
+						cellW-cellBuffer*2,
+						cellH-cellBuffer*2,
+					}, activeC,
+				)
+			}
+		}
+	}
 }
 
 type BoardDimension uint8 
@@ -311,6 +435,42 @@ func populateTestBoard(gb GameBoard) {
 		for y := 0; y < len(gb.Set[0]); y++ {
 			k := rand.Intn(int(KindFinal-1)) + 1 
 			gb.Set[x][y] = TrisKind(k)
+		}
+	}
+}
+
+func (gb *GameBoard) CheckIfTileIsPlaced() (placed bool) {
+	// is there a set tile beneath any tile of the current active tile,
+	// it is placed. Do not move it, change the active tile.
+	// TODO: game over state 
+	// TODO: line clears 
+	activeOff := gb.ActiveTris.Offsets()
+	for _, off := range activeOff {
+		x := int(gb.ActiveTris.X) + int(off[0])
+		y := int(gb.ActiveTris.Y) + int(off[1]) 
+		if x >= 0 && x < len(gb.Set) {
+			if y >= 0 && y < len(gb.Set[0]) {
+				if y == int(gb.Height)-1 {
+					return true 
+				}
+				if gb.Set[x][y+1] != KindNone {
+					return true 
+				}
+			}
+		}
+	}
+	return false 
+}
+
+func (gb *GameBoard) SetActiveTile() {
+	activeOff := gb.ActiveTris.Offsets()
+	for _, off := range activeOff {
+		x := int(gb.ActiveTris.X) + int(off[0])
+		y := int(gb.ActiveTris.Y) + int(off[1]) 
+		if x >= 0 && x < len(gb.Set) {
+			if y >= 0 && y < len(gb.Set[0]) {
+				gb.Set[x][y] = gb.ActiveTris.TrisKind
+			}
 		}
 	}
 }
