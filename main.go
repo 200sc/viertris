@@ -30,19 +30,20 @@ func main() {
 	oak.AddScene(MenuSceneName, scene.Scene{
 		Start: func(ctx *scene.Context) {
 			ctx.Window.GoToScene(GameSceneName)
-	// -- Start game button -> goto game scene
-	// -- Online multiplayer (yeah right)
-	// -- High Scores 
-	// -- Options button -> replace button set with
-	// --- Master volume
-	// --- Music volume
-	// --- SFX volume
-	// --- window size 
-	// --- enable window resize + autoscaling 
-	// --- keymapping 
-	// --- Back 
-	// -- Exit button
-	// - Controllable via keyboard, joystick, mouse 
+			// TODO:
+			// -- Start game button -> goto game scene
+			// -- Online multiplayer (yeah right)
+			// -- High Scores 
+			// -- Options button -> replace button set with
+			// --- Master volume
+			// --- Music volume
+			// --- SFX volume
+			// --- window size 
+			// --- enable window resize + autoscaling 
+			// --- keymapping 
+			// --- Back 
+			// -- Exit button
+			// - Controllable via keyboard, joystick, mouse 
 		},
 	})
 	oak.AddScene(GameSceneName, scene.Scene{
@@ -86,6 +87,14 @@ func main() {
 						dropAt = time.Now().Add(todoFallDuration)
 						keyRepeat = time.Now().Add(keyRepeatDuration/2)
 					}
+					if ctx.KeyState.IsDown(key.Q) {
+						st.ActiveTris.Rotation = st.ActiveTris.RotateLeft()
+						keyRepeat = time.Now().Add(keyRepeatDuration)
+					}
+					if ctx.KeyState.IsDown(key.E) {
+						st.ActiveTris.Rotation = st.ActiveTris.RotateRight()
+						keyRepeat = time.Now().Add(keyRepeatDuration)
+					}
 				}
 				if tileDone {
 					st.GameBoard.SetActiveTile()
@@ -98,20 +107,16 @@ func main() {
 				}
 				return 0
 			})
+			ctx.EventHandler.GlobalBind(key.Down+key.R, event.Empty(func() {
+				recordGif(ctx)
+			}))
 	// Game Scene:
-	// -- Game Board 
 	// -- Score / Level tracking 
 	// -- Stored / Preview window 
-	// -- Events:
-	// --- EnterFrame: move current tris down 1 after duration 
-	// --- Inputs:
-	// ---- rotate current tris 
-	// ---- drop current tris 
 	// ---- store current tris 
 	// ---- retrieve stored tris 
 		},
 	})
-	// Init 
 	err := oak.Init(MenuSceneName, func(c oak.Config) (oak.Config, error) {
 		c.Title = "Viertris"
 		return c, nil
@@ -205,17 +210,72 @@ type GameConfig struct {
 	// todo
 }
 
+type Rotation uint8
+
+const (
+	Rotation0 Rotation = iota 
+	Rotation90 Rotation = iota 
+	Rotation180 Rotation = iota 
+	Rotation270 Rotation = iota 
+	RotationMax Rotation = iota 
+)
+
+func (r Rotation) RotateRight() Rotation {
+	r++
+	if r > Rotation270 {
+		return Rotation0
+	}
+	return r
+}
+
+func (r Rotation) RotateLeft() Rotation {
+	r--
+	if r == 255 {
+		return Rotation270
+	}
+	return r 
+}
+
 type ActiveTris struct {
 	Board *GameBoard
+	Rotation 
 	X BoardDimension 
 	Y BoardDimension 
 	TrisKind
 }
 
+// Offsets on an ActiveTris takes into account rotation
+func (at *ActiveTris) Offsets() [4][2]int8{
+	rawOff := at.TrisKind.Offsets()
+	switch at.Rotation {
+	case Rotation270:
+		for i, off := range rawOff {
+			off[0], off[1] = off[1], -1 * off[0]
+			rawOff[i] = off 
+		}
+		fallthrough 
+	case Rotation180:
+		for i, off := range rawOff {
+			off[0], off[1] = off[1], -1 * off[0]
+			rawOff[i] = off 
+		}
+		fallthrough
+	case Rotation90:
+		for i, off := range rawOff {
+			off[0], off[1] = off[1], -1 * off[0]
+			rawOff[i] = off 
+		}
+		fallthrough
+	case Rotation0:
+		return rawOff
+	default:
+		panic(fmt.Sprintf("invalid rotation", at.Rotation))
+	}
+}
+
 func (at *ActiveTris) MoveLeft() {
 	minX := int(at.X) 
-	// TODO: rotate 
-	off := at.TrisKind.Offsets()
+	off := at.Offsets()
 	for _, o := range off {
 		x := int(at.X) + int(o[0])
 		y := int(at.Y) + int(o[1])
@@ -233,8 +293,7 @@ func (at *ActiveTris) MoveLeft() {
 
 func (at *ActiveTris) MoveRight() {
 	maxX := int(at.X) 
-	// TODO: rotate 
-	off := at.TrisKind.Offsets()
+	off := at.Offsets()
 	for _, o := range off {
 		x := int(at.X) + int(o[0])
 		y := int(at.Y) + int(o[1])
@@ -252,8 +311,7 @@ func (at *ActiveTris) MoveRight() {
 
 func (at *ActiveTris) MoveDown() bool {
 	maxY := int(at.Y)
-	// TODO: rotate 
-	off := at.TrisKind.Offsets()
+	off := at.Offsets()
 	for _, o := range off {
 		y := int(at.Y) + int(o[1])
 		if y > maxY {
@@ -532,9 +590,9 @@ func (gb *GameBoard) IsSet(x, y int) bool {
 }
 
 func recordGif(ctx *scene.Context) {
-	stop := ctx.Window.(*oak.Window).RecordGIF(3)
+	stop := ctx.Window.(*oak.Window).RecordGIF(2)
 
-	go ctx.DoAfter(10 * time.Second, func() {
+	go ctx.DoAfter(20 * time.Second, func() {
 		g := stop()
 		f, err := os.Create("demo.gif")
 		if err == nil {
@@ -542,6 +600,7 @@ func recordGif(ctx *scene.Context) {
 			if err != nil {
 				fmt.Println(err)
 			}
+			f.Close()
 		} else {
 			fmt.Println(err)
 		}
