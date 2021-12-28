@@ -97,13 +97,14 @@ func main() {
 					}
 				}
 				if tileDone {
-					st.GameBoard.SetActiveTile()
+					clears := st.GameBoard.SetActiveTile()
 					st.ActiveTris = ActiveTris{
 						Board: &st.GameBoard,
 						X: 5,
 						Y: 0, 
 						TrisKind: RandomKind(),
 					}
+					st.Clears += clears 
 				}
 				return 0
 			})
@@ -130,13 +131,14 @@ func main() {
 var _ render.Renderable = &GameState{}
 
 func NewGameState(ctx *scene.Context, cfg GameConfig) *GameState {
-	return &GameState{
+	gs := &GameState{
 		LayeredPoint: render.NewLayeredPoint(0,0,0),
 		ctx: ctx, 
 		w: ctx.Window.Width(),
 		h: ctx.Window.Height(),
 		GameBoard: NewGameBoard(cfg),
 	}
+	return gs
 	// TODO: on ctx window size change, update w and h 
 }
 
@@ -146,7 +148,9 @@ type GameState struct {
 	GameConfig
 	ctx *scene.Context 
 	w, h int 
+	ClearsText *render.Text 
 	Clears uint32
+	LevelText *render.Text 
 	Level uint16
 	NextTris TrisKind 
 	StoredTris TrisKind 
@@ -537,7 +541,7 @@ func (gb *GameBoard) CheckIfTileIsPlaced() (placed bool) {
 	return false 
 }
 
-func (gb *GameBoard) SetActiveTile() {
+func (gb *GameBoard) SetActiveTile() (clears uint32) {
 	activeOff := gb.ActiveTris.Offsets()
 	allY := map[int]struct{}{}
 	for _, off := range activeOff {
@@ -557,20 +561,26 @@ func (gb *GameBoard) SetActiveTile() {
 	sort.Slice(orderedY, func(i, j int) bool {
 		return i < j 
 	})
+
+	clears = 0 
 	for _, y := range orderedY {
-		gb.ClearFullLines(y)
+		if gb.ClearFullLines(y) {
+			clears++
+		}
 	}
+	return clears
 }
 
-func (gb *GameBoard) ClearFullLines(y int) {
+func (gb *GameBoard) ClearFullLines(y int) (cleared bool) {
 	for x := 0; x < int(gb.Width); x++ {
 		if gb.Set[y][x] == KindNone {
-			return 
+			return false 
 		}
 	}
 	gb.Set = append(gb.Set[:y], gb.Set[y+1:]...)
 	firstRow := make([]TrisKind, gb.Width)
 	gb.Set = append([][]TrisKind{firstRow}, gb.Set...)
+	return true 
 }
 
 func (gb *GameBoard) IsSet(x, y int) bool {
@@ -591,7 +601,6 @@ func (gb *GameBoard) IsSet(x, y int) bool {
 
 func recordGif(ctx *scene.Context) {
 	stop := ctx.Window.(*oak.Window).RecordGIF(2)
-
 	go ctx.DoAfter(20 * time.Second, func() {
 		g := stop()
 		f, err := os.Create("demo.gif")
