@@ -18,6 +18,19 @@ jobs:
       with:
         go-version: '^1.17'
   
+     - name: Determine Build Info
+      id: info
+        fullRepoPath="${{github.repository}}";
+        build="${{ github.event.inputs.buildversion }}"; 
+        cd go/src/github.com/$fullRepoPath;
+        build=$(cat ./version.json | jq '.version' );
+        echo "found build of $build";
+        if [[  -z "$build" ]]; then
+          echo "Bad format of version.json exiting" && exit 1; 
+        fi;
+        echo "Setting Build Version as $build";
+        echo "::set-output name=VERSION::$(echo $build)";
+
     - name: Build Game      
       run: |
         cd go/src/github.com/${{ github.repository }}/build
