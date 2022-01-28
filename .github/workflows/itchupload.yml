@@ -18,7 +18,7 @@ jobs:
       with:
         go-version: '^1.17'
   
-     - name: Determine Build Info
+    - name: Determine Build Info
       id: info
         fullRepoPath="${{github.repository}}";
         build="${{ github.event.inputs.buildversion }}"; 
