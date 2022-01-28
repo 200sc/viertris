@@ -24,27 +24,20 @@ jobs:
         stableRelease="";
 
         fullRepoPath="${{github.repository}}";
-        repoName="${fullRepoPath##*/}";
-        echo "::set-output name=REPO_NAME::$(echo $repoName)";
 
         build="${{ github.event.inputs.buildversion }}"; 
-        if [[ -z "$build" ]]; then
-          echo "::group::retrieval from file";
-          cd go/src/github.com/$fullRepoPath;
-          build=$(cat ./version.json | jq '.version' );
-          echo "found build of $build";
-          if [[  -z "$build" ]]; then
-            echo "Bad format of version.json exiting" && exit 1; 
-          fi;
-          oldSHA=$(git log -n 1 --pretty=format:%H -- version.json);
-          if [[ "$oldSHA" == "${{ github.sha }}" ]]; then 
-            stableRelease="true";
-          fi;
-          echo "::endgroup::";
-        else
-          stableRelease="true"
-          echo "Running from workflow call setting as stable and not checking files.";
+        echo "::group::retrieval from file";
+        cd go/src/github.com/$fullRepoPath;
+        build=$(cat ./version.json | jq '.version' );
+        echo "found build of $build";
+        if [[  -z "$build" ]]; then
+        echo "Bad format of version.json exiting" && exit 1; 
         fi;
+        oldSHA=$(git log -n 1 --pretty=format:%H -- version.json);
+        if [[ "$oldSHA" == "${{ github.sha }}" ]]; then 
+          stableRelease="true";
+        fi;
+        echo "::endgroup::";
         echo "Setting Build Version as $build";
         echo "::set-output name=VERSION::$(echo $build)";
         echo "Is Stable: $stableRelease";
@@ -60,12 +53,12 @@ jobs:
         zip -r js-wasm.zip js-wasm 
 
     - name: Download Butler
-      run: >-
+      run: |
         curl -L -o butler.zip https://broth.itch.ovh/butler/linux-amd64/LATEST/archive/default
         unzip -qq butler.zip      
   
     - name: hide_creds
-      run:  >-
+      run: |
         echo "::add-mask::${{  secrets.BUTLER_API_KEY  }}";
         echo "${{  secrets.BUTLER_API_KEY  }}" >> butler_creds
       
@@ -73,14 +66,14 @@ jobs:
       run: ./butler -i ./butler_creds push go/src/github.com/${{ github.repository }}/build/js-wasm.zip twohundredscythes/viertris:js-beta --userversion "${{ steps.info.outputs.VERSION }}-${{ github.run_number }}"
 
     - name: upload beta 
-      run: >- 
+      run: |
         for osarch in windows-386, windows-amd64, windows-arm, windows-arm64, linux-amd64, linux-arm, linux-arm64; do
           ./butler -i ./butler_creds push go/src/github.com/${{ github.repository }}/build/$osarch twohundredscythes/viertris:$osarch-beta --userversion "${{ steps.info.outputs.VERSION }}-${{ github.run_number }}"
         done
         
     - name: upload stable
       if: ${{ steps.info.outputs.STABLE_RELEASE == 'true' }}
-      run: >- 
+      run: | 
         for osarch in windows-386, windows-amd64, windows-arm, windows-arm64, linux-amd64, linux-arm, linux-arm64; do
           ./butler -i ./butler_creds push go/src/github.com/${{ github.repository }}/build/$osarch twohundredscythes/viertris:$osarch-stable --userversion ${{ steps.info.outputs.VERSION }}
         done
