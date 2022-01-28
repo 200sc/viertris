@@ -1,16 +1,7 @@
 name: itchio-pusher
 
-on:
-  workflow_dispatch:
-    inputs:
-      buildversion:
-        description: 'Build Version'
-        default: '0.0.0'
-        required: true
-  push:  
-    branches:
-      - main
-      - master
+on: [push]
+
 env: 
   BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
   
