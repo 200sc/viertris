@@ -62,6 +62,9 @@ var Scene = scene.Scene{
 					st.ActiveTris.RotateRight()
 					keyRepeat = time.Now().Add(keyRepeatDuration * 2)
 				}
+				if ctx.KeyState.IsDown(key.L) {
+					st.ActiveTris.TrisKind = KindLine
+				}
 			}
 			if tileDone {
 				clears := st.GameBoard.SetActiveTile()
@@ -326,6 +329,7 @@ const (
 	KindLine   TrisKind = iota
 	KindSquare TrisKind = iota
 	KindZ      TrisKind = iota
+	KindS      TrisKind = iota
 	KindL      TrisKind = iota
 	KindJ      TrisKind = iota
 	KindFinal  TrisKind = iota
@@ -337,6 +341,7 @@ var kindColors = []color.RGBA{
 	KindLine:   {0, 200, 0, 255},
 	KindSquare: {0, 0, 200, 255},
 	KindZ:      {200, 200, 0, 255},
+	KindS:      {200, 200, 200, 255},
 	KindL:      {200, 0, 200, 255},
 	KindJ:      {0, 200, 200, 255},
 }
@@ -346,37 +351,43 @@ func (tk TrisKind) Color() color.RGBA {
 }
 
 var kindOffsets = [][4][2]int8{
-	KindT: [4][2]int8{
+	KindT: {
 		{0, 0},
 		{-1, 0},
 		{0, -1},
 		{1, 0},
 	},
-	KindLine: [4][2]int8{
+	KindLine: {
 		{0, 0},
 		{0, -1},
 		{0, 1},
 		{0, 2},
 	},
-	KindSquare: [4][2]int8{
+	KindSquare: {
 		{0, 0},
 		{0, 1},
 		{1, 1},
 		{1, 0},
 	},
-	KindZ: [4][2]int8{
+	KindS: {
+		{0, 0},
+		{1, 0},
+		{0, 1},
+		{-1, 1},
+	},
+	KindZ: {
 		{0, 0},
 		{-1, 0},
 		{0, 1},
 		{1, 1},
 	},
-	KindL: [4][2]int8{
+	KindL: {
 		{0, 0},
 		{0, -1},
 		{0, 1},
 		{1, 1},
 	},
-	KindJ: [4][2]int8{
+	KindJ: {
 		{0, 0},
 		{0, -1},
 		{0, 1},
