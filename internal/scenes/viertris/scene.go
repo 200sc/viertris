@@ -44,28 +44,23 @@ var Scene = scene.Scene{
 			if time.Now().After(dropAt) {
 				tileDone = st.ActiveTris.MoveDown()
 				dropAt = time.Now().Add(todoFallDuration)
-			}
-			if time.Now().After(keyRepeat) {
+			} else if time.Now().After(keyRepeat) {
 				if ctx.KeyState.IsDown(key.A) {
 					st.ActiveTris.MoveLeft()
 					keyRepeat = time.Now().Add(keyRepeatDuration)
-				}
-				if ctx.KeyState.IsDown(key.D) {
+				} else if ctx.KeyState.IsDown(key.D) {
 					st.ActiveTris.MoveRight()
 					keyRepeat = time.Now().Add(keyRepeatDuration)
-				}
-				if ctx.KeyState.IsDown(key.S) {
+				} else if ctx.KeyState.IsDown(key.S) {
 					tileDone = st.ActiveTris.MoveDown()
 					dropAt = time.Now().Add(todoFallDuration)
 					keyRepeat = time.Now().Add(keyRepeatDuration / 2)
-				}
-				if ctx.KeyState.IsDown(key.Q) {
-					st.ActiveTris.Rotation = st.ActiveTris.RotateLeft()
-					keyRepeat = time.Now().Add(keyRepeatDuration)
-				}
-				if ctx.KeyState.IsDown(key.E) {
-					st.ActiveTris.Rotation = st.ActiveTris.RotateRight()
-					keyRepeat = time.Now().Add(keyRepeatDuration)
+				} else if ctx.KeyState.IsDown(key.Q) {
+					st.ActiveTris.RotateLeft()
+					keyRepeat = time.Now().Add(keyRepeatDuration * 2)
+				} else if ctx.KeyState.IsDown(key.E) {
+					st.ActiveTris.RotateRight()
+					keyRepeat = time.Now().Add(keyRepeatDuration * 2)
 				}
 			}
 			if tileDone {
@@ -211,8 +206,12 @@ type ActiveTris struct {
 
 // Offsets on an ActiveTris takes into account rotation
 func (at *ActiveTris) Offsets() [4][2]int8 {
+	return at.TestOffsets(at.Rotation)
+}
+
+func (at *ActiveTris) TestOffsets(rotation Rotation) [4][2]int8 {
 	rawOff := at.TrisKind.Offsets()
-	switch at.Rotation {
+	switch rotation {
 	case Rotation270:
 		for i, off := range rawOff {
 			off[0], off[1] = off[1], -1*off[0]
@@ -234,8 +233,34 @@ func (at *ActiveTris) Offsets() [4][2]int8 {
 	case Rotation0:
 		return rawOff
 	default:
-		panic(fmt.Sprintf("invalid rotation", at.Rotation))
+		panic(fmt.Sprintf("invalid rotation %v", at.Rotation))
 	}
+}
+
+func (at *ActiveTris) RotateLeft() {
+	newRotation := at.Rotation.RotateLeft()
+	off := at.TestOffsets(newRotation)
+	for _, o := range off {
+		x := int(at.X) + int(o[0])
+		y := int(at.Y) + int(o[1])
+		if at.Board.IsSet(x, y) || at.Board.IsOffscreen(x, y) {
+			return
+		}
+	}
+	at.Rotation = newRotation
+}
+
+func (at *ActiveTris) RotateRight() {
+	newRotation := at.Rotation.RotateRight()
+	off := at.TestOffsets(newRotation)
+	for _, o := range off {
+		x := int(at.X) + int(o[0])
+		y := int(at.Y) + int(o[1])
+		if at.Board.IsSet(x, y) || at.Board.IsOffscreen(x, y) {
+			return
+		}
+	}
+	at.Rotation = newRotation
 }
 
 func (at *ActiveTris) MoveLeft() {
@@ -545,19 +570,26 @@ func (gb *GameBoard) ClearFullLines(y int) (cleared bool) {
 }
 
 func (gb *GameBoard) IsSet(x, y int) bool {
-	if x < 0 {
-		return false
-	}
-	if y < 0 {
-		return false // ??
-	}
-	if x >= int(gb.Width) {
-		return false
-	}
-	if y >= int(gb.Height) {
+	if gb.IsOffscreen(x, y) {
 		return false
 	}
 	return gb.Set[y][x] != KindNone
+}
+
+func (gb *GameBoard) IsOffscreen(x, y int) bool {
+	if x < 0 {
+		return true
+	}
+	if y < 0 {
+		return true // ??
+	}
+	if x >= int(gb.Width) {
+		return true
+	}
+	if y >= int(gb.Height) {
+		return true
+	}
+	return false
 }
 
 func recordGif(ctx *scene.Context) {
