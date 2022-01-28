@@ -139,9 +139,6 @@ func main() {
 			if pair[0] == "windows" {
 				buildName += ".exe"
 			}
-			if pair[1] == "wasm" {
-				buildName += ".wasm"
-			}
 			toRun := []string{"build", "-o", buildName}
 			ldFlags := "-ldflags="
 			allLDFlags := buildInfoLDFlags
