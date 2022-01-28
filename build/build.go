@@ -98,13 +98,13 @@ func main() {
 		panic(err)
 	}
 
-	buildVersion, err := os.ReadFile(filepath.Join("..", "version.json"))
+	buildVersion, err := os.ReadFile(filepath.Join("..", "version"))
 	if err != nil {
 		panic(err)
 	}
 
 	var buildInfoLDFlags = []string{
-		"-X " + buildinfoPkg + ".CheatsEnabled=false",
+		"-X " + buildinfoPkg + ".CheatsEnabled=no",
 		"-X " + buildinfoPkg + ".BuildTime=" + time.Now().Format(time.RFC3339),
 		"-X " + buildinfoPkg + ".BuildCommit=" + string(lastCommit),
 		"-X " + buildinfoPkg + ".BuildVersion=" + string(buildVersion),
@@ -146,6 +146,7 @@ func main() {
 				allLDFlags = append(allLDFlags, flags)
 			}
 			ldFlags += strings.Join(allLDFlags, " ")
+			toRun = append(toRun, ldFlags)
 			toRun = append(toRun, packageName)
 
 			env := os.Environ()

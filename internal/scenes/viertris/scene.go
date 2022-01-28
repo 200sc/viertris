@@ -60,7 +60,7 @@ var Scene = scene.Scene{
 					st.ActiveTris.RotateRight()
 					keyRepeat = time.Now().Add(keyRepeatDuration * 2)
 				}
-				if buildinfo.CheatsEnabled {
+				if buildinfo.AreCheatsEnabled() {
 					if ctx.KeyState.IsDown(key.L) {
 						st.ActiveTris.TrisKind = KindLine
 					}
