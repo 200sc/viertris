@@ -104,6 +104,6 @@ jobs:
 
     - name: stable upload
       if: ${{ steps.info.outputs.STABLE_RELEASE == 'true' }}
-       matrix:
+      matrix:
         osarch: [windows386, windowsamd64, windowsarm, windowsarm64, linuxamd64, linuxarm, linuxarm64]
       run: ./butler -i ./butler_creds push go/src/github.com/${{ github.repository }}/build/${{ matrix.osarch }} twohundredscythes/viertris:${{ matrix.osarch }}-stable --userversion ${{ steps.info.outputs.VERSION }}
