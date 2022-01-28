@@ -135,7 +135,7 @@ func main() {
 		eg.Go(func() error {
 			buildDir := pair[0] + "-" + pair[1]
 			os.MkdirAll(buildDir, 0777)
-			buildName := filepath.Join(buildDir, outputName)
+			buildName := filepath.Join(buildDir, outputName+"."+pair[0]+"."+pair[1])
 			if pair[0] == "windows" {
 				buildName += ".exe"
 			}
