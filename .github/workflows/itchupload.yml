@@ -38,10 +38,10 @@ jobs:
         echo "${{  secrets.BUTLER_API_KEY  }}" >> butler_creds
       
     - name: attempt upload js
-      run: ./butler -i ./butler_creds push go/src/github.com/${{ github.repository }}/build/js-wasm.zip twohundredscythes/viertris:js --userversion "${{ steps.info.outputs.VERSION }}-${{ github.run_number }}"
+      run: ./butler -i ./butler_creds push go/src/github.com/${{ github.repository }}/build/js-wasm.zip twohundredscythes/viertris:js-latest --userversion "${{ steps.info.outputs.VERSION }}-${{ github.run_number }}"
 
     - name: upload beta 
       run: |
         for osarch in windows-386 windows-amd64 windows-arm windows-arm64 linux-amd64 linux-arm linux-arm64; do
-          ./butler -i ./butler_creds push go/src/github.com/${{ github.repository }}/build/$osarch twohundredscythes/viertris:$osarch --userversion "${{ steps.info.outputs.VERSION }}-${{ github.run_number }}"
+          ./butler -i ./butler_creds push go/src/github.com/${{ github.repository }}/build/$osarch twohundredscythes/viertris:$osarch-latest --userversion "${{ steps.info.outputs.VERSION }}-${{ github.run_number }}"
         done
