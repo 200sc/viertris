@@ -508,7 +508,6 @@ func (gb *GameBoard) CheckIfTileIsPlaced() (placed bool) {
 	// is there a set tile beneath any tile of the current active tile,
 	// it is placed. Do not move it, change the active tile.
 	// TODO: game over state
-	// TODO: line clears
 	activeOff := gb.ActiveTris.Offsets()
 	for _, off := range activeOff {
 		x := int(gb.ActiveTris.X) + int(off[0])
@@ -545,7 +544,7 @@ func (gb *GameBoard) SetActiveTile() (clears uint32) {
 		orderedY = append(orderedY, y)
 	}
 	sort.Slice(orderedY, func(i, j int) bool {
-		return i < j
+		return orderedY[i] < orderedY[j]
 	})
 
 	clears = 0
