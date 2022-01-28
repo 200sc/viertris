@@ -50,10 +50,10 @@ func run() error {
 			rw.WriteHeader(404)
 			return
 		default:
-			// Two requests fallthrough: directories and directory/viertris-templated_jswasm.wasm
-			isWasmRequest := strings.HasSuffix(r.URL.Path, "viertris-templated_jswasm.wasm")
+			// Two requests fallthrough: directories and directory/viertris_jswasm.wasm
+			isWasmRequest := strings.HasSuffix(r.URL.Path, "viertris_jswasm.wasm")
 			if !isWasmRequest {
-				r.URL.Path = filepath.Join(r.URL.Path, "viertris-templated_jswasm.wasm")
+				r.URL.Path = filepath.Join(r.URL.Path, "viertris_jswasm.wasm")
 			}
 			// If no wasm file exists to render, report so
 			wasm, err := os.Open(filepath.Join(".", r.URL.Path))
@@ -64,9 +64,9 @@ func run() error {
 				subDir := filepath.Dir(filepath.Join(exampleDir, r.URL.Path))
 				rw.Write([]byte(
 					fmt.Sprintf("cd %v\n", subDir)))
-				rw.Write([]byte(`(powershell) $Env:GOOS="js"; $Env:GOARCH="wasm"; go build -o viertris-templated_jswasm.wasm .`))
+				rw.Write([]byte(`(powershell) $Env:GOOS="js"; $Env:GOARCH="wasm"; go build -o viertris_jswasm.wasm .`))
 				rw.Write([]byte("\n"))
-				rw.Write([]byte("(unix)       GOOS=js GOARCH=wasm go build -o viertris-templated_jswasm.wasm .\n"))
+				rw.Write([]byte("(unix)       GOOS=js GOARCH=wasm go build -o viertris_jswasm.wasm .\n"))
 				fmt.Println("no wasm", err)
 				return
 			}

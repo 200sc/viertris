@@ -4,30 +4,35 @@ package main
 // OS and architecture pairs.
 
 import (
-	"bytes"
 	"flag"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"golang.org/x/sync/errgroup"
 )
 
 var (
 	// Defaults
 	osxPairs = [][2]string{
 		// I think this has to be actually run on osx
-		//{"darwin", "amd64"},
-		//{"darwin", "arm"},
-		//{"darwin", "arm64"},
+		{"darwin", "amd64"},
+		{"darwin", "arm64"},
 	}
 	linuxPairs = [][2]string{
-		//{"linux", "386"},
+		{"linux", "386"},
 		{"linux", "amd64"},
 		{"linux", "arm"},
-		//{"linux", "arm64"},
+		{"linux", "arm64"},
 	}
 	winPairs = [][2]string{
 		{"windows", "386"},
 		{"windows", "amd64"},
+		{"windows", "arm"},
+		{"windows", "arm64"},
 	}
 	jsPairs = [][2]string{
 		{"js", "wasm"},
@@ -35,66 +40,43 @@ var (
 	// End Defaults
 	android = [][2]string{
 		{"android", "arm"},
-	}
-
-	// These are grouped together because, from my (https://github.com/200sc) perspective, they
-	// are less often used by themselves. If there are valid use cases
-	// to split them up into their own boolean flags then this can change.
-	// I admit this is mostly because I can't think of what computer would
-	// use these and would also be used for a generic program.
-	nonDefaultPairs = [][2]string{
-		{"dragonfly", "amd64"},
-		{"freebsd", "386"},
-		{"freebsd", "amd64"},
-		{"freebsd", "arm"},
-		{"linux", "ppc64"},
-		{"linux", "ppc64le"},
-		{"linux", "mips"},
-		{"linux", "mipsle"},
-		{"linux", "mips64"},
-		{"linux", "mips64le"},
-		{"netbsd", "386"},
-		{"netbsd", "amd64"},
-		{"netbsd", "arm"},
-		{"openbsd", "386"},
-		{"openbsd", "amd64"},
-		{"openbsd", "arm"},
-		{"plan9", "386"},
-		{"plan9", "amd64"},
-		{"solaris", "amd64"},
+		{"android", "arm64"},
 	}
 
 	osArchPairs [][2]string
 
-	archPairFlags = map[[2]string][]string{
-		{"windows", "386"}:   {"-ldflags=-H=windowsgui"},
-		{"windows", "amd64"}: {"-ldflags=-H=windowsgui"},
+	archPairLDFlags = map[[2]string]string{
+		{"windows", "386"}:   "-H=windowsgui",
+		{"windows", "amd64"}: "-H=windowsgui",
 	}
 
-	packageName string
-	outputName  string
-	verbose     bool
-	useosx      bool
-	usewin      bool
-	uselinux    bool
-	usedroid    bool
-	useall      bool
-	usejs       bool
-	help        bool
+	outputName string
+	verbose    bool
+	useosx     bool
+	usewin     bool
+	uselinux   bool
+	usedroid   bool
+	useall     bool
+	usejs      bool
+	help       bool
 )
 
 func init() {
 	flag.BoolVar(&verbose, "v", true, "print build commands as they are run")
-	flag.StringVar(&outputName, "o", "viertris-templated", "output executable name")
-	flag.BoolVar(&useosx, "osx", false, "build darwin executables")
-	flag.BoolVar(&uselinux, "nix", false, "build linux exectuables")
+	flag.StringVar(&outputName, "o", "viertris", "output executable name")
+	flag.BoolVar(&useosx, "osx", true, "build darwin executables")
+	flag.BoolVar(&uselinux, "nix", true, "build linux exectuables")
 	flag.BoolVar(&usewin, "win", true, "build windows exectuables")
 	flag.BoolVar(&usedroid, "android", false, "build android executables")
-	flag.BoolVar(&usejs, "js", false, "build js executables")
+	flag.BoolVar(&usejs, "js", true, "build js executables")
 	flag.BoolVar(&useall, "all", false, "build all executables")
-	flag.StringVar(&packageName, "pkg", "github.com/200sc/viertris-templated", "package to build")
 	flag.BoolVar(&help, "h", false, "prints usage")
 }
+
+const (
+	packageName  = "github.com/200sc/viertris"
+	buildinfoPkg = packageName + "/internal/buildinfo"
+)
 
 func main() {
 	if help {
@@ -108,7 +90,24 @@ func main() {
 		usedroid = true
 		usewin = true
 		usejs = true
-		osArchPairs = nonDefaultPairs
+	}
+
+	lastCommit, err := exec.Command("git", "rev-list", "-1", "HEAD").CombinedOutput()
+	if err != nil {
+		fmt.Println(string(lastCommit))
+		panic(err)
+	}
+
+	buildVersion, err := os.ReadFile(filepath.Join("..", "version.json"))
+	if err != nil {
+		panic(err)
+	}
+
+	var buildInfoLDFlags = []string{
+		"-X " + buildinfoPkg + ".CheatsEnabled=false",
+		"-X " + buildinfoPkg + ".BuildTime=" + time.Now().Format(time.RFC3339),
+		"-X " + buildinfoPkg + ".BuildCommit=" + string(lastCommit),
+		"-X " + buildinfoPkg + ".BuildVersion=" + string(buildVersion),
 	}
 
 	if useosx {
@@ -127,34 +126,58 @@ func main() {
 		osArchPairs = append(osArchPairs, jsPairs...)
 	}
 
+	workDir := os.TempDir()
+
+	var eg errgroup.Group
+
 	for _, pair := range osArchPairs {
-		os.Setenv("GOOS", pair[0])
-		os.Setenv("GOARCH", pair[1])
-		buildName := outputName + "_" + pair[0] + pair[1]
-		if pair[0] == "windows" {
-			buildName += ".exe"
-		}
-		if pair[1] == "wasm" {
-			buildName += ".wasm"
-		}
-		var out bytes.Buffer
-		toRun := []string{"build", "--tags", "prod", "-o", buildName}
-		if flags, ok := archPairFlags[pair]; ok {
-			toRun = append(toRun, flags...)
-		}
-		toRun = append(toRun, packageName)
-		if verbose {
-			fmt.Println("Running: go ", toRun)
-		}
-		cmd := exec.Command("go", toRun...)
-		cmd.Stdout = &out
-		cmd.Stderr = &out
-		err := cmd.Run()
-		if err != nil {
-			fmt.Println(err)
-		}
-		if verbose && out.Len() != 0 {
-			fmt.Printf("%s\n", out.String())
-		}
+		pair := pair
+		eg.Go(func() error {
+			buildDir := pair[0] + "-" + pair[1]
+			os.MkdirAll(buildDir, 0777)
+			buildName := filepath.Join(buildDir, outputName)
+			if pair[0] == "windows" {
+				buildName += ".exe"
+			}
+			if pair[1] == "wasm" {
+				buildName += ".wasm"
+			}
+			toRun := []string{"build", "-o", buildName}
+			ldFlags := "-ldflags="
+			allLDFlags := buildInfoLDFlags
+			if flags, ok := archPairLDFlags[pair]; ok {
+				allLDFlags = append(allLDFlags, flags)
+			}
+			ldFlags += strings.Join(allLDFlags, " ")
+			toRun = append(toRun, packageName)
+
+			env := os.Environ()
+			env = append(env, []string{
+				"GOOS=" + pair[0],
+				"GOARCH=" + pair[1],
+				"GOTMPDIR=" + workDir,
+			}...)
+			if verbose {
+				fmt.Println("Running: go ", toRun)
+			}
+			cmd := exec.Command("go", toRun...)
+			cmd.Env = env
+
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				fmt.Println("Target", pair, "errored:")
+				fmt.Println(err)
+			}
+			if verbose && len(out) != 0 {
+				fmt.Printf("%s\n", string(out))
+			}
+			return nil
+		})
+	}
+
+	err = eg.Wait()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 }

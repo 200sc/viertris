@@ -75,18 +75,14 @@ jobs:
         echo "Is Stable: $stableRelease";
         echo "::set-output name=STABLE_RELEASE::$(echo $stableRelease)";
 
-    # paranoia with cds
     - name: Build Game      
       run: |
         cd go/src/github.com/${{ github.repository }}/build
-        go run build.go -js -v 
-    - name: Convience dirs
+        go run build.go
+    - name: Zip WASM
       run: |
         cd go/src/github.com/${{ github.repository }}/build
-        cp ./viertris-templated_windows386.exe ./win32 
-        cp ./viertris-templated_windowsamd64.exe ./win64
-        cp ./viertris-templated_jswasm.wasm ./wasm
-        zip -r wasm.zip wasm 
+        zip -r js-wasm.zip js-wasm 
     
     - name: Download Butler
       run: curl -L -o butler.zip https://broth.itch.ovh/butler/linux-amd64/LATEST/archive/default
@@ -99,16 +95,15 @@ jobs:
         echo "::add-mask::${{  secrets.BUTLER_API_KEY  }}";
         echo "${{  secrets.BUTLER_API_KEY  }}" >> butler_creds
     
-    - name: attempt upload 32
-      run: ./butler -i ./butler_creds push go/src/github.com/${{ github.repository }}/build/win32 twohundredscythes/viertris:win32-beta --userversion "${{ steps.info.outputs.VERSION }}-${{ github.run_number }}"
-    - name: attempt upload 64
-      run: ./butler -i ./butler_creds push go/src/github.com/${{ github.repository }}/build/win64 twohundredscythes/viertris:win64-beta --userversion "${{ steps.info.outputs.VERSION }}-${{ github.run_number }}"
+    - name: upload
+      matrix:
+        osarch: [windows-386, windows-amd64, windows-arm, windows-arm64, linux-amd64, linux-arm, linux-arm64]
+      run: ./butler -i ./butler_creds push go/src/github.com/${{ github.repository }}/build/${{ matrix.osarch }} twohundredscythes/viertris:${{ matrix.osarch }}-beta --userversion "${{ steps.info.outputs.VERSION }}-${{ github.run_number }}"
     - name: attempt upload js
-      run: ./butler -i ./butler_creds push go/src/github.com/${{ github.repository }}/build/wasm.zip twohundredscythes/viertris:js-beta --userversion "${{ steps.info.outputs.VERSION }}-${{ github.run_number }}"
+      run: ./butler -i ./butler_creds push go/src/github.com/${{ github.repository }}/build/js-wasm.zip twohundredscythes/viertris:js-beta --userversion "${{ steps.info.outputs.VERSION }}-${{ github.run_number }}"
 
-    - name: stable version upload 32
+    - name: stable upload
       if: ${{ steps.info.outputs.STABLE_RELEASE == 'true' }}
-      run: ./butler -i ./butler_creds push go/src/github.com/${{ github.repository }}/build/win32 twohundredscythes/viertris:win32-stable --userversion ${{ steps.info.outputs.VERSION }}
-    - name: stable version upload 64
-      if: ${{ steps.info.outputs.STABLE_RELEASE == 'true'  }}
-      run: ./butler -i ./butler_creds push go/src/github.com/${{ github.repository }}/build/win64 twohundredscythes/viertris:win64-stable --userversion ${{ steps.info.outputs.VERSION }}
+       matrix:
+        osarch: [windows386, windowsamd64, windowsarm, windowsarm64, linuxamd64, linuxarm, linuxarm64]
+      run: ./butler -i ./butler_creds push go/src/github.com/${{ github.repository }}/build/${{ matrix.osarch }} twohundredscythes/viertris:${{ matrix.osarch }}-stable --userversion ${{ steps.info.outputs.VERSION }}

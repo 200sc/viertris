@@ -11,6 +11,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/200sc/viertris/internal/buildinfo"
 	"github.com/oakmound/oak/v3"
 	"github.com/oakmound/oak/v3/alg/intgeom"
 	"github.com/oakmound/oak/v3/event"
@@ -21,21 +22,18 @@ import (
 
 var Scene = scene.Scene{
 	Start: func(ctx *scene.Context) {
-		//recordGif(ctx)
-		rand.Seed(time.Now().Unix())
-		st := NewGameState(ctx, GameConfig{})
+		cfg, ok := ctx.SceneInput.(GameConfig)
+		if !ok {
+			fmt.Println("no game config passed to scene")
+		}
+
+		st := NewGameState(ctx, cfg)
 		ctx.DrawStack.Draw(st)
-		//populateTestBoard(st.GameBoard)
 		const keyRepeatDuration = 70 * time.Millisecond
 		const todoFallDuration = 700 * time.Millisecond
 		dropAt := time.Now().Add(todoFallDuration)
 
-		st.ActiveTris = ActiveTris{
-			Board:    &st.GameBoard,
-			X:        5,
-			Y:        0,
-			TrisKind: RandomKind(),
-		}
+		st.SetRandomTrisActive()
 
 		keyRepeat := time.Now().Add(keyRepeatDuration)
 		ctx.EventHandler.GlobalBind(event.Enter, func(_ event.CID, payload interface{}) int {
@@ -62,18 +60,15 @@ var Scene = scene.Scene{
 					st.ActiveTris.RotateRight()
 					keyRepeat = time.Now().Add(keyRepeatDuration * 2)
 				}
-				if ctx.KeyState.IsDown(key.L) {
-					st.ActiveTris.TrisKind = KindLine
+				if buildinfo.CheatsEnabled {
+					if ctx.KeyState.IsDown(key.L) {
+						st.ActiveTris.TrisKind = KindLine
+					}
 				}
 			}
 			if tileDone {
 				clears := st.GameBoard.SetActiveTile()
-				st.ActiveTris = ActiveTris{
-					Board:    &st.GameBoard,
-					X:        5,
-					Y:        0,
-					TrisKind: RandomKind(),
-				}
+				st.SetRandomTrisActive()
 				st.Clears += clears
 			}
 			return 0
@@ -121,6 +116,15 @@ const boardRatio = 0.7
 const buffer = 5
 const boardX = buffer
 const boardY = buffer
+
+func (gs *GameState) SetRandomTrisActive() {
+	gs.ActiveTris = ActiveTris{
+		Board:    &gs.GameBoard,
+		X:        gs.Width / 2,
+		Y:        0,
+		TrisKind: RandomKind(),
+	}
+}
 
 func (gs *GameState) Draw(buff draw.Image, _ float64, _ float64) {
 
