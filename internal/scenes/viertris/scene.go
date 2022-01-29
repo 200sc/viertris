@@ -11,6 +11,7 @@ import (
 	"github.com/oakmound/oak/v3/scene"
 )
 
+// TODO: menu scene to start game, pick level, pick settings
 var Scene = scene.Scene{
 	Start: func(ctx *scene.Context) {
 		cfg, ok := ctx.SceneInput.(GameConfig)
@@ -20,9 +21,9 @@ var Scene = scene.Scene{
 
 		st := NewGameState(ctx, cfg)
 		ctx.DrawStack.Draw(st)
-		const keyRepeatDuration = 70 * time.Millisecond
-		const todoFallDuration = 700 * time.Millisecond
-		dropAt := time.Now().Add(todoFallDuration)
+		var keyRepeatDuration = 70 * time.Millisecond
+		var fallDuration = 700 * time.Millisecond
+		dropAt := time.Now().Add(fallDuration)
 
 		st.SetTrisActive(RandomKind())
 		st.NextTris = RandomKind()
@@ -40,7 +41,7 @@ var Scene = scene.Scene{
 			//enter := payload.(event.EnterPayload)
 			if time.Now().After(dropAt) {
 				tileDone = st.ActiveTris.MoveDown()
-				dropAt = time.Now().Add(todoFallDuration)
+				dropAt = time.Now().Add(fallDuration)
 			} else if time.Now().After(keyRepeat) {
 				if ctx.KeyState.IsDown(key.A) {
 					st.ActiveTris.MoveLeft()
@@ -50,7 +51,7 @@ var Scene = scene.Scene{
 					keyRepeat = time.Now().Add(keyRepeatDuration)
 				} else if ctx.KeyState.IsDown(key.S) {
 					tileDone = st.ActiveTris.MoveDown()
-					dropAt = time.Now().Add(todoFallDuration)
+					dropAt = time.Now().Add(fallDuration)
 					keyRepeat = time.Now().Add(keyRepeatDuration / 2)
 				} else if ctx.KeyState.IsDown(key.Q) {
 					st.ActiveTris.RotateLeft()
@@ -77,7 +78,6 @@ var Scene = scene.Scene{
 				collidedAtStart := st.SetTrisActive(st.NextTris)
 				if collidedAtStart {
 					gameOver = true
-					// todo: flashiness 
 					for y, row := range st.Set {
 						for x, kind := range row {
 							if kind != KindNone {
@@ -102,7 +102,12 @@ var Scene = scene.Scene{
 				case 3:
 					st.Score += 9
 				case 4:
-					st.Score += 20
+					st.Score += 16
+				}
+				lastLevel := st.Level
+				st.Level = st.Clears / 10
+				if lastLevel < st.Level {
+					fallDuration = time.Duration(float64(fallDuration) * .85)
 				}
 			}
 			return 0
@@ -117,13 +122,25 @@ var Scene = scene.Scene{
 			}
 			return 0
 		})
+		ctx.EventHandler.GlobalBind(key.Down+key.Spacebar, func(c event.CID, i interface{}) int {
+			var tileDone bool
+			for !tileDone {
+				tileDone = st.ActiveTris.MoveDown()
+			}
+			dropAt = time.Now()
+			return 0
+		})
 		if buildinfo.AreCheatsEnabled() {
 			ctx.EventHandler.GlobalBind(key.Down+key.L, func(c event.CID, i interface{}) int {
 				st.ActiveTris.TrisKind = KindLine
 				return 0
 			})
+			ctx.EventHandler.GlobalBind(key.Down+key.One, func(c event.CID, i interface{}) int {
+				st.Clears += 10
+				st.Level = st.Clears / 10
+				fallDuration = time.Duration(float64(fallDuration) * .85)
+				return 0
+			})
 		}
-		// Game Scene:
-		// -- Score / Level tracking
 	},
 }
