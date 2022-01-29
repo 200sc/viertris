@@ -1,3 +1,6 @@
 **/*.exe
 **/*.wasm
 **/*.apk
+build/**/*.arm
+build/**/*.amd64
+build/**/*.arm64

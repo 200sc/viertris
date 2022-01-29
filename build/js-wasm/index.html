@@ -27,7 +27,7 @@ license that can be found in the GO_LICENSE file.
 		}
 
 		const go = new Go();
-		WebAssembly.instantiateStreaming(fetch("viertris_jswasm.wasm"), go.importObject).then((result) => {
+		WebAssembly.instantiateStreaming(fetch("viertris.js.wasm"), go.importObject).then((result) => {
 			let mod, inst;
 			mod = result.module;
 			inst = result.instance;
