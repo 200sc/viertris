@@ -34,9 +34,13 @@ var Scene = scene.Scene{
 		dropAt := time.Now().Add(todoFallDuration)
 
 		st.SetRandomTrisActive()
+		paused := false
 
 		keyRepeat := time.Now().Add(keyRepeatDuration)
 		ctx.EventHandler.GlobalBind(event.Enter, func(_ event.CID, payload interface{}) int {
+			if paused {
+				return 0
+			}
 			tileDone := false
 			//enter := payload.(event.EnterPayload)
 			if time.Now().After(dropAt) {
@@ -60,11 +64,6 @@ var Scene = scene.Scene{
 					st.ActiveTris.RotateRight()
 					keyRepeat = time.Now().Add(keyRepeatDuration * 2)
 				}
-				if buildinfo.AreCheatsEnabled() {
-					if ctx.KeyState.IsDown(key.L) {
-						st.ActiveTris.TrisKind = KindLine
-					}
-				}
 			}
 			if tileDone {
 				clears := st.GameBoard.SetActiveTile()
@@ -73,9 +72,22 @@ var Scene = scene.Scene{
 			}
 			return 0
 		})
-		ctx.EventHandler.GlobalBind(key.Down+key.R, event.Empty(func() {
-			recordGif(ctx)
-		}))
+		var dropAtDelta time.Duration
+		ctx.EventHandler.GlobalBind(key.Down+key.P, func(c event.CID, i interface{}) int {
+			paused = !paused
+			if paused {
+				dropAtDelta = time.Until(dropAt)
+			} else {
+				dropAt = time.Now().Add(dropAtDelta)
+			}
+			return 0
+		})
+		if buildinfo.AreCheatsEnabled() {
+			ctx.EventHandler.GlobalBind(key.Down+key.L, func(c event.CID, i interface{}) int {
+				st.ActiveTris.TrisKind = KindLine
+				return 0
+			})
+		}
 		// Game Scene:
 		// -- Score / Level tracking
 		// -- Stored / Preview window
