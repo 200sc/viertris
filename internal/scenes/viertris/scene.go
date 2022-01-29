@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/200sc/viertris/internal/buildinfo"
+	"github.com/200sc/viertris/internal/scenes"
 	"github.com/oakmound/oak/v3/event"
 	"github.com/oakmound/oak/v3/key"
 	"github.com/oakmound/oak/v3/scene"
@@ -27,11 +28,12 @@ var Scene = scene.Scene{
 		st.NextTris = RandomKind()
 
 		paused := false
+		gameOver := false
 		canSwap := true
 
 		keyRepeat := time.Now().Add(keyRepeatDuration)
 		ctx.EventHandler.GlobalBind(event.Enter, func(_ event.CID, payload interface{}) int {
-			if paused {
+			if paused || gameOver {
 				return 0
 			}
 			tileDone := false
@@ -71,9 +73,24 @@ var Scene = scene.Scene{
 			}
 			if tileDone {
 				canSwap = true
-				clears, gameOver := st.GameBoard.PlaceActiveTile()
-				fmt.Println(clears, gameOver)
-				st.SetTrisActive(st.NextTris)
+				clears := st.GameBoard.PlaceActiveTile()
+				collidedAtStart := st.SetTrisActive(st.NextTris)
+				if collidedAtStart {
+					gameOver = true
+					// todo: flashiness 
+					for y, row := range st.Set {
+						for x, kind := range row {
+							if kind != KindNone {
+								st.Set[y][x] = KindFinal
+							}
+						}
+					}
+					// restart binding
+					ctx.EventHandler.GlobalBind(key.Down+key.R, func(c event.CID, i interface{}) int {
+						ctx.Window.GoToScene(scenes.Viertris)
+						return 0
+					})
+				}
 				st.NextTris = RandomKind()
 
 				st.Clears += uint64(clears)

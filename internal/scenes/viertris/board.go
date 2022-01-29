@@ -111,7 +111,7 @@ func (gb *GameBoard) CheckIfTileIsPlaced() (placed bool) {
 	return false
 }
 
-func (gb *GameBoard) PlaceActiveTile() (clears uint32, gameOver bool) {
+func (gb *GameBoard) PlaceActiveTile() (clears uint32) {
 	activeOff := gb.ActiveTris.Offsets()
 	allY := map[int]struct{}{}
 	for _, off := range activeOff {
@@ -121,8 +121,6 @@ func (gb *GameBoard) PlaceActiveTile() (clears uint32, gameOver bool) {
 			if y >= 0 && y < int(gb.Height) {
 				gb.Set[y][x] = gb.ActiveTris.TrisKind
 				allY[y] = struct{}{}
-			} else if y > int(gb.Height) {
-				gameOver = true
 			}
 		}
 	}
@@ -140,7 +138,7 @@ func (gb *GameBoard) PlaceActiveTile() (clears uint32, gameOver bool) {
 			clears++
 		}
 	}
-	return clears, gameOver
+	return clears
 }
 
 func (gb *GameBoard) ClearFullLines(y int) (cleared bool) {

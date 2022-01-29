@@ -151,6 +151,7 @@ var kindColors = []color.RGBA{
 	KindS:      {200, 200, 200, 255},
 	KindL:      {200, 0, 200, 255},
 	KindJ:      {0, 200, 200, 255},
+	KindFinal:  {50, 50, 50, 255},
 }
 
 func (tk TrisKind) Color() color.RGBA {

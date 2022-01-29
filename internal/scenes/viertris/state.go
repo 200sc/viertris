@@ -60,13 +60,22 @@ const buffer = 5
 const boardX = buffer
 const boardY = buffer
 
-func (gs *GameState) SetTrisActive(kind TrisKind) {
+func (gs *GameState) SetTrisActive(kind TrisKind) (gameOver bool) {
 	gs.ActiveTris = ActiveTris{
 		Board:    &gs.GameBoard,
 		X:        gs.Width / 2,
 		Y:        0,
 		TrisKind: kind,
 	}
+	activeOff := gs.ActiveTris.Offsets()
+	for _, off := range activeOff {
+		x := int(gs.GameBoard.ActiveTris.X) + int(off[0])
+		y := int(gs.GameBoard.ActiveTris.Y) + int(off[1])
+		if gs.GameBoard.IsSet(x, y) {
+			return true
+		}
+	}
+	return false
 }
 
 func (gs *GameState) Draw(buff draw.Image, _ float64, _ float64) {
